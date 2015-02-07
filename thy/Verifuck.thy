@@ -81,6 +81,7 @@ fun next_machine :: "instr \<Rightarrow> ('a::{zero,one,minus,plus}, 'b) machine
 "next_machine In = (\<lambda>(tape, io). let (c, io') = read_io io in (tape_map_cur (\<lambda>_. c) tape, io'))" |
 "next_machine Out = (\<lambda>(tape, io). (tape, write_io (cur tape) io))"
 
+(*TODO: needs documentation*)
 fun skip_loop :: "instr list \<Rightarrow> nat \<Rightarrow> instr list" where
 "skip_loop xs 0 = xs" |
 "skip_loop (Loop # xs) n = skip_loop xs (n + 1)" |
@@ -92,7 +93,7 @@ partial_function (tailrec) interp_bf :: "instr_table \<Rightarrow> ('a::{zero,on
 "interp_bf tab m =
   (case tab of ([], _) \<Rightarrow> m |
                (Loop # is, stack) \<Rightarrow> if cur (fst m) = 0 then interp_bf (skip_loop is 1, stack) m else interp_bf (is, (Loop # is) # stack) m |
-               (Pool # _, is2 # stack) \<Rightarrow> interp_bf (is2, stack) m | (* todo: codegen bug, rename is2 to is to reproduce *)
+               (Pool # _, is2 # stack) \<Rightarrow> interp_bf (is2, stack) m | (* todo: codegen bug, rename `is2' to `is' to reproduce *)
                (Pool # _, []) \<Rightarrow> m |
                (i # is, stack) \<Rightarrow> interp_bf (is, stack) (next_machine i m))"
 
@@ -104,6 +105,7 @@ definition run_bf :: "instr list \<Rightarrow> 'a::{zero,one,minus,plus} list \<
 export_code run_bf in SML module_name Verifuck file "code/verifuck.ML"
 (*SML_file "code/verifuck.ML"*)
 
+(*source: http://de.wikipedia.org/wiki/Brainfuck#Hello_World.21 retrieved Feb 7 2015*)
 definition "hello_world = ''++++++++++
  [
   >+++++++>++++++++++>+++>+<<<<-
