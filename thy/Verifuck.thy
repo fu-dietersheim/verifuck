@@ -93,7 +93,7 @@ partial_function (tailrec) interp_bf :: "instr_table \<Rightarrow> ('a::{zero,on
 "interp_bf tab m =
   (case tab of ([], _) \<Rightarrow> m |
                (Loop # is, stack) \<Rightarrow> if cur (fst m) = 0 then interp_bf (skip_loop is 1, stack) m else interp_bf (is, (Loop # is) # stack) m |
-               (Pool # _, is2 # stack) \<Rightarrow> interp_bf (is2, stack) m | (* todo: codegen bug, rename `is2' to `is' to reproduce *)
+               (Pool # _, is # stack) \<Rightarrow> interp_bf (is, stack) m |
                (Pool # _, []) \<Rightarrow> m |
                (i # is, stack) \<Rightarrow> interp_bf (is, stack) (next_machine i m))"
 
