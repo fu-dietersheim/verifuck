@@ -24,7 +24,7 @@ instantiation char :: minus begin
   instance ..
 end
 
-datatype_new instr = Incr | Decr | Right | Left | Out | In | Loop | Pool
+datatype instr = Incr | Decr | Right | Left | Out | In | Loop | Pool
 
 fun parse_instrs :: "string \<Rightarrow> instr list" where
 "parse_instrs [] = []" |
@@ -39,7 +39,7 @@ fun parse_instrs :: "string \<Rightarrow> instr list" where
   if x = CHR '']'' then Pool # parse_instrs xs else
   parse_instrs xs)"
 
-datatype_new 'a tape = Tape (left: "'a list") (cur: 'a) (right: "'a list")
+datatype 'a tape = Tape (left: "'a list") (cur: 'a) (right: "'a list")
 
 definition empty_tape :: "'a::zero tape" where
 "empty_tape = Tape [] 0 []"
@@ -55,7 +55,7 @@ fun tape_shift_left :: "'a::zero tape \<Rightarrow> 'a tape" where
 "tape_shift_left (Tape [] c r) = Tape [] 0 (c # r)" |
 "tape_shift_left (Tape (l # ls) c r) = Tape ls l (c # r)"
 
-datatype_new ('a, 'b) io = Buffer (state: 'b) (read: "'b \<Rightarrow> ('a \<times> 'b)") (out_buf: "'a list")
+datatype ('a, 'b) io = Buffer (state: 'b) (read: "'b \<Rightarrow> ('a \<times> 'b)") (out_buf: "'a list")
 
 definition init_io :: "'a list \<Rightarrow> ('a, 'a list) io" where
 "init_io xs = Buffer xs (case_list undefined Pair) []"
@@ -125,6 +125,9 @@ definition "hello_world = ''++++++++++
  >.                      Zeilenvorschub
  +++.                    Wagenruecklauf''"
 
-value (code) "run_bf (parse_instrs hello_world) ([]::char list)"
+lemma "run_bf (parse_instrs hello_world) ([]::char list) = 
+       ''Hello World!'' @ [CHR ''\<newline>'', Char Nibble0 NibbleD]" by eval
+
+export_code run_bf in Haskell
 
 end
