@@ -77,6 +77,39 @@ partial_function (tailrec) interp_bf :: "instr_table \<Rightarrow> ('a::{zero,on
 
 declare interp_bf.simps[code]
 
+fun extract_loop :: "instr list \<Rightarrow> nat \<Rightarrow> instr list" where
+"extract_loop (Pool # xs) 0 = []" |
+"extract_loop (Loop # xs) n = Loop # extract_loop xs (n + 1)" |
+"extract_loop (Pool # xs) n = Pool # extract_loop xs (n - 1)" |
+"extract_loop (x # xs) n = x # extract_loop xs n" |
+"extract_loop [] n = []" (*n should b 0 if number of Loops/Pools matches*)
+
+value[code] "extract_loop [Incr, Loop, Decr, Incr, Pool, Decr, Pool] 0"
+
+partial_function (tailrec) interp_stackless_bf :: "instr list \<Rightarrow> ('a::{zero,one,minus,plus}, 'b) machine \<Rightarrow> ('a, 'b) machine" where
+"interp_stackless_bf cs m =
+  (case cs of [] \<Rightarrow> m |
+              (Loop # is) \<Rightarrow> if cur (fst m) = 0 then interp_stackless_bf (skip_loop is 1) m
+                             else interp_stackless_bf (extract_loop is 0) m |
+              (Pool # _) \<Rightarrow> m | (*terminate*)
+              (i # is) \<Rightarrow> interp_stackless_bf is (next_machine i m))"
+
+lemma "(\<And>m. interp_bf (cs, []) m = interp_stackless_bf cs m) \<Longrightarrow> 
+  interp_bf (Loop # cs, []) m = interp_stackless_bf (Loop # cs) m"
+  apply(subst interp_bf.simps)
+  apply(subst interp_stackless_bf.simps)
+  apply simp
+  apply(intro conjI impI)
+oops
+lemma "interp_bf (cs, []) m = interp_stackless_bf cs m"
+  apply(induction cs arbitrary: m)
+   apply(simp add: interp_bf.simps interp_stackless_bf.simps; fail)
+  apply(rename_tac c cs m)
+  apply(case_tac c)
+  apply(simp_all add: interp_bf.simps interp_stackless_bf.simps)[6]
+  
+  oops
+
 (*undefined behavior if reading from undefined input buffer. Pretty unusable since we cannot
   query from within our bf-code whether there is something to read available.*)
 definition run_bf_generic :: "instr list \<Rightarrow> 'a::{zero,one,minus,plus} list \<Rightarrow> 'a list" where

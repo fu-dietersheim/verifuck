@@ -19,7 +19,7 @@ init:  "s = s' \<Longrightarrow> eval_bf [] s s'" |
        "eval_bf [Incr]  (Normal (Tape lt c rt) inp outp)       (Normal (Tape lt (c + 1) rt) inp outp)" |
        "eval_bf [Decr] (Normal (Tape lt c rt) inp outp)       (Normal (Tape lt (c - 1) rt) inp outp)" |
        "eval_bf [Out] (Normal (Tape lt c rt) inp (Output outp))     (Normal (Tape lt c rt) inp (Output (c#outp)))" |
-       "eval_bf [In]  (Normal (Tape lt _ rt) (Input []) outp)       (Normal (Tape lt 0 rt) (Input []) outp)" |
+       "eval_bf [In]  (Normal (Tape lt _ rt) (Input []) outp)       (Normal (Tape lt (0 - 1) rt) (Input []) outp)" | (*really?*)
        "eval_bf [In]  (Normal (Tape lt _ rt) (Input (i#is)) outp)   (Normal (Tape lt i rt) (Input is) outp)" |
 seq:  "eval_bf code s s' \<Longrightarrow> eval_bf code' s' s'' \<Longrightarrow> eval_bf (code@code') s s''" |
 whileTrue:      "c \<noteq> 0 \<Longrightarrow> eval_bf code (Normal (Tape lt c rt) inp outp) (Normal (Tape lt'' c'' rt'') inp'' outp'') \<Longrightarrow>
@@ -59,7 +59,7 @@ lemma "eval_bf [Incr, Out] (Normal (Tape [] (0::nat) []) inp (Output [])) (Norma
 
 
 lemma "run_bf [instr.Right] inp = []"
-  by(simp add: run_bf_def interp_bf.simps init_table_def init_io_def)
+  by(simp add: run_bf_def interp_bf.simps init_table_def)
 
 lemma eval_bf_emptyD: "eval_bf [] s s' \<Longrightarrow> s = s'"
 proof-
@@ -69,12 +69,40 @@ proof-
   thus "eval_bf [] s s' \<Longrightarrow> s = s'" by simp
 qed
 
+lemma interp_bf_fst_emptystack: "interp_bf (i#is, []) m =
+  (case i of Loop \<Rightarrow> if cur (fst m) = 0 then interp_bf (skip_loop is 1, []) m else interp_bf (is, [Loop # is]) m |
+             Pool \<Rightarrow> m |
+             _ \<Rightarrow> interp_bf (is, []) (next_machine i m))"
+  by(simp add: interp_bf.simps split: instr.split)
+
+lemma "interp_bf (code @ code', []) m = interp_bf (code', []) (interp_bf (code, []) m)"
+  apply(induction code arbitrary: code' m)
+   apply(simp add: interp_bf.simps; fail)
+  apply(simp add: interp_bf_fst_emptystack)
+  apply(safe)
+  apply(simp split: instr.split)
+  apply(safe)
+  apply (simp_all add: case_prod_beta)
+  (*damn you skip_loop*)
+  oops
+
+lemma "eval_bf prog (Normal (Tape [] 0 []) (Input inp) (Output []))  (Normal (Tape lt' c' rt') (Input inp') (Output outp')) \<Longrightarrow>
+         interp_bf (prog, []) (Tape [] 0 [], Buffer inp read_byte []) = (Tape lt' c' rt', Buffer inp' read_byte outp')"
+  apply(induction prog "(Normal (Tape [] 0 []) (Input inp) (Output []))"  "(Normal (Tape lt' c' rt') (Input inp') (Output outp'))" rule: eval_bf.induct)
+  apply(simp_all add: interp_bf.simps del: next_machine.simps)[7]
+  apply (simp_all add: case_prod_beta)[4]
+  apply(simp add: EOF_def, fastforce)
+  apply(case_tac "(read_byte inp)")
+  apply fastforce
+  prefer 2
+  apply(simp add: interp_bf.simps; fail)
+  oops
 
 
 lemma "eval_bf prog (Normal (Tape [] 0 []) (Input inp) (Output outp))  (Normal (Tape lt' c' rt') (Input inp') (Output outp')) \<Longrightarrow>
           (run_bf prog inp) @ outp = outp'"
   apply(induction prog "(Normal (Tape [] 0 []) (Input inp) (Output outp))"  "(Normal (Tape lt' c' rt') (Input inp') (Output outp'))" rule: eval_bf.induct)
-  apply(simp_all add: interp_bf.simps run_bf_def empty_tape_def init_table_def init_io_def)
+  apply(simp_all add: interp_bf.simps run_bf_def empty_tape_def init_table_def)
   apply (simp_all add: case_prod_beta)
 
   (*apply(case_tac code)
