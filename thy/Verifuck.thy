@@ -1,28 +1,9 @@
 theory Verifuck
 imports
   Main
+  "~~/src/HOL/Word/Word"
   "~~/src/HOL/Library/Code_Char"
 begin
-
-instantiation char :: zero begin
-  definition "zero_char = char_of_nat 0"
-  instance ..
-end
-
-instantiation char :: one begin
-  definition "one_char = char_of_nat 1"
-  instance ..
-end
-
-instantiation char :: plus begin
-  definition "plus_char c d = char_of_nat (nat_of_char c + nat_of_char d)"
-  instance ..
-end
-
-instantiation char :: minus begin
-  definition "minus_char c d = char_of_integer (integer_of_char c - integer_of_char d)"
-  instance ..
-end
 
 datatype instr = Incr | Decr | Right | Left | Out | In | Loop | Pool
 
@@ -125,8 +106,13 @@ definition "hello_world = ''++++++++++
  >.                      Zeilenvorschub
  +++.                    Wagenruecklauf''"
 
-lemma "run_bf (parse_instrs hello_world) ([]::char list) = 
-       ''Hello World!'' @ [CHR ''\<newline>'', Char Nibble0 NibbleD]" by eval
+definition byte_to_char :: "8 word \<Rightarrow> char" where
+  "byte_to_char b \<equiv> char_of_nat (unat b)"
+definition char_to_byte :: "char \<Rightarrow> 8 word" where
+  "char_to_byte c \<equiv> of_nat (nat_of_char c)"
+
+lemma "let result = run_bf (parse_instrs hello_world) ([]::8 word list) in
+         map byte_to_char result = ''Hello World!'' @ [CHR ''\<newline>'', Char Nibble0 NibbleD]" by eval
 
 export_code run_bf in Haskell
 
