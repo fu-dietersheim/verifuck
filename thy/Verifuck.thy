@@ -38,9 +38,6 @@ fun tape_shift_left :: "'a::zero tape \<Rightarrow> 'a tape" where
 
 datatype ('a, 'b) io = Buffer (state: 'b) (read: "'b \<Rightarrow> ('a \<times> 'b)") (out_buf: "'a list")
 
-definition init_io :: "'a list \<Rightarrow> ('a, 'a list) io" where
-"init_io xs = Buffer xs (case_list undefined Pair) []"
-
 type_synonym ('a, 'b) machine = "'a tape \<times> ('a, 'b) io"
 
 definition read_io :: "('a, 'b) io \<Rightarrow> ('a \<times> ('a, 'b) io)" where
@@ -80,8 +77,23 @@ partial_function (tailrec) interp_bf :: "instr_table \<Rightarrow> ('a::{zero,on
 
 declare interp_bf.simps[code]
 
-definition run_bf :: "instr list \<Rightarrow> 'a::{zero,one,minus,plus} list \<Rightarrow> 'a list" where
-"run_bf prog input = rev (out_buf (snd (interp_bf (init_table prog) (empty_tape, init_io input))))"
+(*undefined behavior if reading from undefined input buffer. Pretty unusable since we cannot
+  query from within our bf-code whether there is something to read available.*)
+definition run_bf_generic :: "instr list \<Rightarrow> 'a::{zero,one,minus,plus} list \<Rightarrow> 'a list" where
+"run_bf_generic prog input = rev (out_buf (snd (interp_bf (init_table prog)
+                                  (empty_tape, (Buffer input (case_list undefined Pair) [])))))"
+
+
+(*https://en.wikipedia.org/wiki/Brainfuck#End-of-file_behavior*)
+definition EOF :: "8 word" where
+  "EOF \<equiv> 255"
+fun read_byte :: "8 word list \<Rightarrow> (8 word \<times> 8 word list)" where
+  "read_byte [] = (EOF, [])" |
+  "read_byte (b#bs) = (b, bs)"
+
+definition run_bf :: "instr list \<Rightarrow> 8 word list \<Rightarrow> 8 word list" where
+"run_bf prog input = rev (out_buf (snd (interp_bf (init_table prog)
+                                  (empty_tape, (Buffer input read_byte [])))))"
 
 export_code run_bf in SML module_name Verifuck file "code/verifuck.ML"
 (*SML_file "code/verifuck.ML"*)

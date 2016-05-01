@@ -33,11 +33,8 @@ definition "rot13 =  ''
 ]                            End character reading loop''"
 
 
-(*the exprected value of rev ''Uryyb Jbeyq'' = ''qyebJ byyrU'' can be seen*)
-value[code] "(map char_to_byte ''Hello World'')"
-value[code] "(parse_instrs rot13)"
-value[code] "run_bf (parse_instrs rot13) (map char_to_byte ''Hello World'')"
-value[code] "let v = run_bf (parse_instrs rot13) (''Hello World''::char list) in ()"
-(*todo: present output somehow, even if program wants to continue processing input*)
+value[code] "map byte_to_char (run_bf (parse_instrs rot13) (map char_to_byte ''Hello World!''))"
+lemma "let result = run_bf (parse_instrs rot13) (map char_to_byte ''Hello World!'') in
+         map byte_to_char result = ''Uryyb Jbeyq!''" by eval
 
 end
