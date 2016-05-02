@@ -69,6 +69,86 @@ proof-
   thus "eval_bf [] s s' \<Longrightarrow> s = s'" by simp
 qed
 
+
+(*
+(*steps left \<Rightarrow> current program \<Rightarrow> executed instructions \<Rightarrow> skip because we are in a loop? \<Rightarrow> ...*)
+fun  bounded_machine :: "nat \<Rightarrow> instr list \<Rightarrow> instr list \<Rightarrow> loop_skipper \<Rightarrow> 
+                          ('a::{zero,one,minus,plus}, 'b) machine \<Rightarrow> ('a, 'b) machine" where
+"bounded_machine 0 _ _ _ m  = m" | (*TODO: error out-of-instructions*)
+"bounded_machine _ [] _ NoSkip m  = m" |
+"bounded_machine (Suc n) (Incr#cs) rs NoSkip m = bounded_machine n cs (Incr#rs) NoSkip (apfst (tape_map_cur (\<lambda>x. x + 1)) m)" |
+"bounded_machine (Suc n) (Decr#cs) rs NoSkip m = bounded_machine n cs (Decr#rs) NoSkip (apfst (tape_map_cur (\<lambda>x. x - 1)) m)" |
+"bounded_machine (Suc n) (Left#cs) rs NoSkip m = bounded_machine n cs (Left#rs) NoSkip (apfst tape_shift_left m)" |
+"bounded_machine (Suc n) (Right#cs) rs NoSkip m = bounded_machine n cs (Right#rs) NoSkip (apfst tape_shift_right m)" |
+"bounded_machine (Suc n) (In#cs) rs NoSkip m = bounded_machine n cs (In#rs) NoSkip ((\<lambda>(tape, io). let (c, io') = read_io io in (tape_map_cur (\<lambda>_. c) tape, io')) m)" |
+"bounded_machine (Suc n) (Out#cs) rs NoSkip m = bounded_machine n cs (Out#rs) NoSkip ((\<lambda>(tape, io). (tape, write_io (cur tape) io)) m)" |
+"bounded_machine (Suc n) (Loop#cs) rs NoSkip m = bounded_machine n cs (Loop#rs) (SkipForward 0) m" | (*only if current = 0*)
+"bounded_machine (Suc n) (Loop#cs) rs (SkipForward s) m = bounded_machine n cs (Loop#rs) (SkipForward (Suc s)) m" |
+"bounded_machine (Suc n) (Pool#cs) rs (SkipForward 0) m = bounded_machine n cs (Pool#rs) NoSkip m" |
+"bounded_machine (Suc n) (Pool#cs) rs (SkipForward (Suc s)) m = bounded_machine n cs (Loop#rs) (SkipForward s) m" |
+"bounded_machine (Suc n) (c#cs) rs (SkipForward s) m = bounded_machine n cs (c#rs) (SkipForward s) m" |
+"bounded_machine (Suc n) [] rs (SkipForward s) m = m" | (*no closing ]*)
+"bounded_machine (Suc n) (Pool#cs) rs NoSkip m = bounded_machine n cs (Loop#rs) (SkipBackward 0) m" |
+"bounded_machine (Suc n) cs (Loop#rs) (SkipBackward 0) m = bounded_machine n (Loop#cs) rs NoSkip m" |
+"bounded_machine (Suc n) cs (Loop#rs) (SkipBackward (Suc s)) m = bounded_machine n (Loop#cs) rs (SkipBackward s) m" |
+"bounded_machine (Suc n) cs (Pool#rs) (SkipBackward s) m = bounded_machine n (Pool#cs) rs (SkipBackward (Suc s)) m" |
+"bounded_machine (Suc n) cs (c#rs) (SkipBackward s) m = bounded_machine n (c#cs) rs (SkipBackward s) m" |
+"bounded_machine (Suc n) cs [] (SkipBackward s) m = m" (*no opening [*)
+by pat_completeness auto
+
+
+datatype loop_skipper = NoSkip | SkipForward nat | SkipBackward nat
+
+(*TODO: error of out-of-instructions*)
+(*steps left \<Rightarrow> current program \<Rightarrow> executed instructions \<Rightarrow> skip because we are in a loop? \<Rightarrow> ...*)
+fun  bounded_machine :: "nat \<Rightarrow> instr list \<Rightarrow> instr list \<Rightarrow> loop_skipper \<Rightarrow> 
+                          ('a::{zero,one,minus,plus}, 'b) machine \<Rightarrow> ('a, 'b) machine" where
+"bounded_machine 0 _ _ _ m  = m" | (*TODO: error out-of-instructions*)
+"bounded_machine _ [] _ NoSkip m  = m" |
+"bounded_machine (Suc n) (Incr#cs) rs NoSkip m = bounded_machine n cs (Incr#rs) NoSkip (apfst (tape_map_cur (\<lambda>x. x + 1)) m)" |
+"bounded_machine (Suc n) (Decr#cs) rs NoSkip m = bounded_machine n cs (Decr#rs) NoSkip (apfst (tape_map_cur (\<lambda>x. x - 1)) m)" |
+"bounded_machine (Suc n) (Left#cs) rs NoSkip m = bounded_machine n cs (Left#rs) NoSkip (apfst tape_shift_left m)" |
+"bounded_machine (Suc n) (Right#cs) rs NoSkip m = bounded_machine n cs (Right#rs) NoSkip (apfst tape_shift_right m)" |
+"bounded_machine (Suc n) (In#cs) rs NoSkip m = bounded_machine n cs (In#rs) NoSkip ((\<lambda>(tape, io). let (c, io') = read_io io in (tape_map_cur (\<lambda>_. c) tape, io')) m)" |
+"bounded_machine (Suc n) (Out#cs) rs NoSkip m = bounded_machine n cs (Out#rs) NoSkip ((\<lambda>(tape, io). (tape, write_io (cur tape) io)) m)" |
+"bounded_machine (Suc n) (Loop#cs) rs NoSkip m = bounded_machine n cs (Loop#rs) (SkipForward 0) m" | (*only if current = 0*)
+"bounded_machine (Suc n) (Loop#cs) rs (SkipForward s) m = bounded_machine n cs (Loop#rs) (SkipForward (Suc s)) m" |
+"bounded_machine (Suc n) (Pool#cs) rs (SkipForward 0) m = bounded_machine n cs (Pool#rs) NoSkip m" |
+"bounded_machine (Suc n) (Pool#cs) rs (SkipForward (Suc s)) m = bounded_machine n cs (Loop#rs) (SkipForward s) m" |
+"bounded_machine (Suc n) (c#cs) rs (SkipForward s) m = bounded_machine n cs (c#rs) (SkipForward s) m" |
+"bounded_machine (Suc n) [] rs (SkipForward s) m = m" | (*no closing ]*)
+"bounded_machine (Suc n) (Pool#cs) rs NoSkip m = bounded_machine n cs (Loop#rs) (SkipBackward 0) m" |
+"bounded_machine (Suc n) cs (Loop#rs) (SkipBackward 0) m = bounded_machine n (Loop#cs) rs NoSkip m" |
+"bounded_machine (Suc n) cs (Loop#rs) (SkipBackward (Suc s)) m = bounded_machine n (Loop#cs) rs (SkipBackward s) m" |
+"bounded_machine (Suc n) cs (Pool#rs) (SkipBackward s) m = bounded_machine n (Pool#cs) rs (SkipBackward (Suc s)) m" |
+"bounded_machine (Suc n) cs (c#rs) (SkipBackward s) m = bounded_machine n (c#cs) rs (SkipBackward s) m" |
+"bounded_machine (Suc n) cs [] (SkipBackward s) m = m" (*no opening [*)
+by pat_completeness auto
+
+termination bounded_machine
+apply(relation "measure (\<lambda>(n, cs, rs, skipper, tape, io).
+      case skipper of NoSkip \<Rightarrow> n + length cs + length rs
+                   |  SkipForward s \<Rightarrow> (length cs) + n + (if s = 0 then length rs else xs)
+                   |  SkipBackward s \<Rightarrow> length rs + g n)")
+apply(simp)
+apply(simp_all)
+apply(simp_all add: min_def max_def split: nat.split)
+oops
+*)
+
+
+lemma "bounded_machine limit prog rs (tpe, buf) = Some (Tape lt' c' rt', Buffer inp' read_byte outp') \<Longrightarrow>
+       buf = Buffer inp read_byte outp \<Longrightarrow> rs = []
+        \<Longrightarrow> 
+        eval_bf prog (Normal tpe (Input inp) (Output outp))  (Normal (Tape lt' c' rt') (Input inp') (Output outp'))"
+  thm bounded_machine.induct
+  apply(induction limit prog rs "(tpe, buf)" rule: bounded_machine.induct)
+  apply(simp_all)
+  apply(auto intro: eval_bf.intros)
+  
+  oops
+
+
 lemma interp_bf_fst_emptystack: "interp_bf (i#is, []) m =
   (case i of Loop \<Rightarrow> if cur (fst m) = 0 then interp_bf (skip_loop is 1, []) m else interp_bf (is, [Loop # is]) m |
              Pool \<Rightarrow> m |

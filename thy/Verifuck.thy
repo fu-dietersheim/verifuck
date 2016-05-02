@@ -77,39 +77,6 @@ partial_function (tailrec) interp_bf :: "instr_table \<Rightarrow> ('a::{zero,on
 
 declare interp_bf.simps[code]
 
-fun extract_loop :: "instr list \<Rightarrow> nat \<Rightarrow> instr list" where
-"extract_loop (Pool # xs) 0 = []" |
-"extract_loop (Loop # xs) n = Loop # extract_loop xs (n + 1)" |
-"extract_loop (Pool # xs) n = Pool # extract_loop xs (n - 1)" |
-"extract_loop (x # xs) n = x # extract_loop xs n" |
-"extract_loop [] n = []" (*n should b 0 if number of Loops/Pools matches*)
-
-value[code] "extract_loop [Incr, Loop, Decr, Incr, Pool, Decr, Pool] 0"
-
-partial_function (tailrec) interp_stackless_bf :: "instr list \<Rightarrow> ('a::{zero,one,minus,plus}, 'b) machine \<Rightarrow> ('a, 'b) machine" where
-"interp_stackless_bf cs m =
-  (case cs of [] \<Rightarrow> m |
-              (Loop # is) \<Rightarrow> if cur (fst m) = 0 then interp_stackless_bf (skip_loop is 1) m
-                             else interp_stackless_bf (extract_loop is 0) m |
-              (Pool # _) \<Rightarrow> m | (*terminate*)
-              (i # is) \<Rightarrow> interp_stackless_bf is (next_machine i m))"
-
-lemma "(\<And>m. interp_bf (cs, []) m = interp_stackless_bf cs m) \<Longrightarrow> 
-  interp_bf (Loop # cs, []) m = interp_stackless_bf (Loop # cs) m"
-  apply(subst interp_bf.simps)
-  apply(subst interp_stackless_bf.simps)
-  apply simp
-  apply(intro conjI impI)
-oops
-lemma "interp_bf (cs, []) m = interp_stackless_bf cs m"
-  apply(induction cs arbitrary: m)
-   apply(simp add: interp_bf.simps interp_stackless_bf.simps; fail)
-  apply(rename_tac c cs m)
-  apply(case_tac c)
-  apply(simp_all add: interp_bf.simps interp_stackless_bf.simps)[6]
-  
-  oops
-
 (*undefined behavior if reading from undefined input buffer. Pretty unusable since we cannot
   query from within our bf-code whether there is something to read available.*)
 definition run_bf_generic :: "instr list \<Rightarrow> 'a::{zero,one,minus,plus} list \<Rightarrow> 'a list" where
@@ -160,5 +127,63 @@ lemma "let result = run_bf (parse_instrs hello_world) ([]::8 word list) in
          map byte_to_char result = ''Hello World!'' @ [CHR ''\<newline>'', Char Nibble0 NibbleD]" by eval
 
 export_code run_bf in Haskell
+
+
+
+
+
+
+
+
+
+
+fun skip_loop_forward :: "instr list \<Rightarrow> instr list \<Rightarrow> nat \<Rightarrow> (instr list \<times> instr list)" where
+"skip_loop_forward [] rs _ = ([], rs)" |
+"skip_loop_forward (Pool # cs) rs 0 = (cs, Pool#rs)" |
+"skip_loop_forward (Pool # cs) rs (Suc n) = skip_loop_forward cs (Pool#rs) n" |
+"skip_loop_forward (Loop # cs) rs n = skip_loop_forward cs (Loop#rs) (n + 1)"  |
+"skip_loop_forward (c # cs) rs n = skip_loop_forward cs (c#rs) n"
+
+fun skip_loop_backward :: "instr list \<Rightarrow> instr list \<Rightarrow> nat \<Rightarrow> (instr list \<times> instr list)" where
+"skip_loop_backward cs [] _ = (cs, [])" |
+"skip_loop_backward cs (Loop # rs) 0 = (Loop#cs, rs)" |
+"skip_loop_backward cs (Loop # rs) (Suc n) = skip_loop_backward (Loop#cs) rs n" |
+"skip_loop_backward cs (Pool # rs) n = skip_loop_backward (Loop#cs) rs (n + 1)"  |
+"skip_loop_backward cs (c#rs) n = skip_loop_backward (c#cs) rs n" 
+
+
+
+(*steps left \<Rightarrow> current program \<Rightarrow> executed instructions \<Rightarrow> skip because we are in a loop? \<Rightarrow> ...*)
+fun  bounded_machine :: "nat \<Rightarrow> instr list \<Rightarrow> instr list \<Rightarrow> 
+                          ('a::{zero,one,minus,plus}, 'b) machine \<Rightarrow> ('a, 'b) machine option" where
+"bounded_machine 0 _ _ m  = None" | (*TODO: error out-of-instructions*)
+"bounded_machine _ [] _ m  = Some m" |
+"bounded_machine (Suc n) (Incr#cs) rs m = bounded_machine n cs (Incr#rs) (apfst (tape_map_cur (\<lambda>x. x + 1)) m)" |
+"bounded_machine (Suc n) (Decr#cs) rs m = bounded_machine n cs (Decr#rs) (apfst (tape_map_cur (\<lambda>x. x - 1)) m)" |
+"bounded_machine (Suc n) (Left#cs) rs m = bounded_machine n cs (Left#rs) (apfst tape_shift_left m)" |
+"bounded_machine (Suc n) (Right#cs) rs m = bounded_machine n cs (Right#rs) (apfst tape_shift_right m)" |
+"bounded_machine (Suc n) (In#cs) rs m = bounded_machine n cs (In#rs)
+                                            ((\<lambda>(tape, io). let (c, io') = read_io io in (tape_map_cur (\<lambda>_. c) tape, io')) m)" |
+"bounded_machine (Suc n) (Out#cs) rs m = bounded_machine n cs (Out#rs)
+                                            ((\<lambda>(tape, io). (tape, write_io (cur tape) io)) m)" |
+"bounded_machine (Suc n) (Loop#cs) rs m = (if cur (fst m) = 0 then 
+                                           (let (cs', rs') = skip_loop_forward cs (Loop#rs) 0 in 
+                                            bounded_machine n cs' rs' m)
+                                          else bounded_machine n cs (Loop#rs) m)" |
+"bounded_machine (Suc n) (Pool#cs) rs m = (let (cs', rs') = skip_loop_backward (Pool#cs) rs 0 in 
+                                            bounded_machine n cs' rs' m)"
+
+value "bounded_machine 40 [Incr, Loop, Incr, Pool] [] (empty_tape, Buffer [] read_byte [])"
+
+
+value "bounded_machine 40000 [Decr, Loop, Loop, Decr, Right, Incr, Left, Pool, Out, Decr, Pool] [] (empty_tape, Buffer [] read_byte [])"
+
+definition run_bf_bounded :: "nat \<Rightarrow> instr list \<Rightarrow> 8 word list \<Rightarrow> 8 word list" where
+"run_bf_bounded limit prog input \<equiv> case bounded_machine limit prog [] (empty_tape, Buffer input read_byte [])
+    of Some (tape, buf) \<Rightarrow> rev (out_buf buf)"
+
+
+lemma "let result = run_bf_bounded 1024 (parse_instrs hello_world) [] in
+         map byte_to_char result = ''Hello World!'' @ [CHR ''\<newline>'', Char Nibble0 NibbleD]" by eval
 
 end
