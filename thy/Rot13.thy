@@ -32,15 +32,16 @@ definition "rot13 =  ''
     <-,+                     Read next character
 ]                            End character reading loop''"
 
+value[code] "parse_instrs rot13"
 
 value[code] "map byte_to_char (run_bf (parse_instrs rot13) (map char_to_byte ''Hello World!''))"
 lemma "let result = run_bf (parse_instrs rot13) (map char_to_byte ''Hello World!'') in
          map byte_to_char result = ''Uryyb Jbeyq!''" by eval
 
-(*Not working*)
-value "bounded_machine 20000 (parse_instrs rot13) [] (empty_tape, Buffer (map char_to_byte ''Hello World!'') read_byte [])"
+value "bounded_machine 102 (parse_instrs rot13) [] (empty_tape, Buffer (map char_to_byte ''Hello World!'') read_byte [])"
 
-value "let result = run_bf_bounded 34502004 (parse_instrs rot13) (map char_to_byte ''Hello World!'') in
-         map byte_to_char result"
+lemma "case run_bf_bounded 60000 (parse_instrs rot13) (map char_to_byte ''Hello World!'') of Result result \<Rightarrow>
+         map byte_to_char result = ''Uryyb Jbeyq!''" by eval
+
 
 end

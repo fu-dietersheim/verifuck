@@ -137,7 +137,7 @@ oops
 *)
 
 
-lemma "bounded_machine limit prog rs (tpe, buf) = Some (Tape lt' c' rt', Buffer inp' read_byte outp') \<Longrightarrow>
+lemma "bounded_machine limit prog rs (tpe, buf) = Result (Tape lt' c' rt', Buffer inp' read_byte outp') \<Longrightarrow>
        buf = Buffer inp read_byte outp \<Longrightarrow> rs = []
         \<Longrightarrow> 
         eval_bf prog (Normal tpe (Input inp) (Output outp))  (Normal (Tape lt' c' rt') (Input inp') (Output outp'))"
@@ -145,7 +145,16 @@ lemma "bounded_machine limit prog rs (tpe, buf) = Some (Tape lt' c' rt', Buffer 
   apply(induction limit prog rs "(tpe, buf)" rule: bounded_machine.induct)
   apply(simp_all)
   apply(auto intro: eval_bf.intros)
-  
+  oops
+
+
+lemma "bounded_machine limit prog rs (tpe, buf) = Result result
+        \<Longrightarrow> 
+        interp_bf (prog, []) (tpe, buf) = result"
+  apply(induction limit prog rs "(tpe, buf)" arbitrary:result tpe buf rule: bounded_machine.induct)
+  apply(simp_all)
+  apply(simp_all add: interp_bf.simps)[5]
+  apply(simp add: interp_bf.simps)
   oops
 
 
