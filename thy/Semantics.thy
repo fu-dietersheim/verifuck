@@ -136,15 +136,42 @@ apply(simp_all add: min_def max_def split: nat.split)
 oops
 *)
 
+lemma eval_bf_tape_shift_right: "eval_bf [instr.Right] (Normal tpe inp outp) (Normal (tape_shift_right tpe) inp outp)"
+  apply(cases tpe, rename_tac l c r)
+  apply(case_tac r)
+  apply(auto intro: eval_bf.intros)
+  done
+
+lemma "eval_bf [instr.Left] (Normal tpe inp outp) (Normal (tape_shift_left tpe) inp outp)"
+  apply(cases tpe, rename_tac l c r)
+  apply(case_tac l)
+  apply(auto intro: eval_bf.intros)
+(*TODO: tape_shift_left zero-extends the tape, semantics errors*)
+  oops
+
 
 lemma "bounded_machine limit prog rs (tpe, buf) = Result (Tape lt' c' rt', Buffer inp' read_byte outp') \<Longrightarrow>
-       buf = Buffer inp read_byte outp \<Longrightarrow> rs = []
+       buf = Buffer inp read_byte outp (*\<Longrightarrow> rs = []*)
         \<Longrightarrow> 
         eval_bf prog (Normal tpe (Input inp) (Output outp))  (Normal (Tape lt' c' rt') (Input inp') (Output outp'))"
   thm bounded_machine.induct
-  apply(induction limit prog rs "(tpe, buf)" rule: bounded_machine.induct)
+  apply(induction limit prog rs "(tpe, buf)" arbitrary: tpe lt' c' rt' inp' outp' rule: bounded_machine.induct)
   apply(simp_all)
-  apply(auto intro: eval_bf.intros)
+  apply(auto intro: eval_bf.intros)[1]
+  apply(rule_tac s'="Normal (Tape (left tpe) (cur tpe + 1) (right tpe)) (Input inp) (Output outp)" in seq')
+  apply(case_tac tpe)
+  apply(auto intro: eval_bf.intros)[2]
+  apply(rule_tac s'="Normal (Tape (left tpe) (cur tpe - 1) (right tpe)) (Input inp) (Output outp)" in seq')
+  apply(case_tac tpe)
+  apply(auto intro: eval_bf.intros)[2]
+  apply(rule_tac s'="Normal (tape_shift_left tpe) (Input inp) (Output outp)" in seq')
+  apply(case_tac tpe)
+  apply(auto intro: eval_bf.intros)[2]
+  (*error*)
+  defer
+  apply(rule_tac s'="Normal (tape_shift_right tpe) (Input inp) (Output outp)" in seq')
+  apply(auto simp add: eval_bf_tape_shift_right intro: eval_bf.intros)[2]
+  
   oops
 
 
