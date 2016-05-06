@@ -60,7 +60,6 @@ fun next_machine :: "instr \<Rightarrow> ('a::{zero,one,minus,plus}, 'b) machine
 "next_machine In = (\<lambda>(tape, io). let (c, io') = read_io io in (tape_map_cur (\<lambda>_. c) tape, io'))" |
 "next_machine Out = (\<lambda>(tape, io). (tape, write_io (cur tape) io))"
 
-(*TODO: needs documentation*)
 fun skip_loop :: "instr list \<Rightarrow> nat \<Rightarrow> instr list" where
 "skip_loop xs 0 = xs" |
 "skip_loop (Loop # xs) n = skip_loop xs (n + 1)" |
@@ -139,13 +138,18 @@ export_code run_bf in Haskell
 
 datatype ('a, 'b) either = Error 'a | Result 'b
 
+
+fun tape_shift_left' :: "'a tape \<Rightarrow> (string, 'a tape) either" where
+"tape_shift_left' (Tape [] c r) = Error ''cannot shift tape left: end of tape''" |
+"tape_shift_left' (Tape (l # ls) c r) = Result (Tape ls l (c # r))"
+
+
 fun skip_loop_forward :: "instr list \<Rightarrow> instr list \<Rightarrow> nat \<Rightarrow> (string, instr list \<times> instr list) either" where
 "skip_loop_forward [] rs _ = Error ''unbalanced [] expected ]''" |
 "skip_loop_forward (Pool # cs) rs 0 = Result (cs, Pool#rs)" |
 "skip_loop_forward (Pool # cs) rs (Suc n) = skip_loop_forward cs (Pool#rs) n" |
 "skip_loop_forward (Loop # cs) rs n = skip_loop_forward cs (Loop#rs) (n + 1)"  |
 "skip_loop_forward (c # cs) rs n = skip_loop_forward cs (c#rs) n"
-
 
 fun skip_loop_backward :: "instr list \<Rightarrow> instr list \<Rightarrow> nat \<Rightarrow> (string, instr list \<times> instr list) either" where
 "skip_loop_backward cs [] _ = Error ''unbalanced [] expected [''" |
@@ -182,14 +186,16 @@ fun  bounded_machine :: "nat \<Rightarrow> instr list \<Rightarrow> instr list \
                           either" where
 "bounded_machine 0 cs rs m  = Error (''Out of Instructions'', rev rs, cs, m)" | (*TODO: error out-of-instructions*)
 "bounded_machine _ [] _ m  = Result m" |
-"bounded_machine (Suc n) (Incr#cs) rs m = bounded_machine n cs (Incr#rs) (apfst (tape_map_cur (\<lambda>x. x + 1)) m)" |
-"bounded_machine (Suc n) (Decr#cs) rs m = bounded_machine n cs (Decr#rs) (apfst (tape_map_cur (\<lambda>x. x - 1)) m)" |
-"bounded_machine (Suc n) (Left#cs) rs m = bounded_machine n cs (Left#rs) (apfst tape_shift_left m)" |
-"bounded_machine (Suc n) (Right#cs) rs m = bounded_machine n cs (Right#rs) (apfst tape_shift_right m)" |
-"bounded_machine (Suc n) (In#cs) rs m = bounded_machine n cs (In#rs)
-                                            ((\<lambda>(tape, io). let (c, io') = read_io io in (tape_map_cur (\<lambda>_. c) tape, io')) m)" |
-"bounded_machine (Suc n) (Out#cs) rs m = bounded_machine n cs (Out#rs)
-                                            ((\<lambda>(tape, io). (tape, write_io (cur tape) io)) m)" |
+"bounded_machine (Suc n) (Incr#cs) rs (tape, io) = bounded_machine n cs (Incr#rs) (tape_map_cur (\<lambda>x. x + 1) tape, io)" |
+"bounded_machine (Suc n) (Decr#cs) rs (tape, io) = bounded_machine n cs (Decr#rs) (tape_map_cur (\<lambda>x. x - 1) tape, io)" |
+"bounded_machine (Suc n) (Left#cs) rs (tape, io) = (case tape_shift_left' tape
+                                                          of Result tape' \<Rightarrow> bounded_machine n cs (Left#rs) (tape', io)
+                                                          |  Error err \<Rightarrow> Error (err, rev rs, cs, (tape, io))
+                                                   )" |
+"bounded_machine (Suc n) (Right#cs) rs (tape, io) = bounded_machine n cs (Right#rs) (tape_shift_right tape, io)" |
+"bounded_machine (Suc n) (In#cs) rs (tape, io) = bounded_machine n cs (In#rs)
+                                            (let (c, io') = read_io io in (tape_map_cur (\<lambda>_. c) tape, io'))" |
+"bounded_machine (Suc n) (Out#cs) rs (tape, io) = bounded_machine n cs (Out#rs) (tape, write_io (cur tape) io)" |
 "bounded_machine (Suc n) (Loop#cs) rs m = (if cur (fst m) = 0 then 
                                            (case skip_loop_forward cs (Loop#rs) 0 of
                                                    Result (cs', rs') \<Rightarrow> bounded_machine n cs' rs' m

@@ -142,35 +142,57 @@ lemma eval_bf_tape_shift_right: "eval_bf [instr.Right] (Normal tpe inp outp) (No
   apply(auto intro: eval_bf.intros)
   done
 
-lemma "eval_bf [instr.Left] (Normal tpe inp outp) (Normal (tape_shift_left tpe) inp outp)"
+lemma eval_bf_tape_shift_left': 
+      "tape_shift_left' tpe = Result shifted_tape \<Longrightarrow>
+        eval_bf [instr.Left] (Normal tpe inp outp) (Normal shifted_tape inp outp)"
   apply(cases tpe, rename_tac l c r)
   apply(case_tac l)
   apply(auto intro: eval_bf.intros)
-(*TODO: tape_shift_left zero-extends the tape, semantics errors*)
-  oops
+  done
 
+lemma eval_bf_intro_In_EOF:
+  "eval_bf [In] (Normal (Tape lt c rt) (Input []) outp) (Normal (Tape lt EOF rt) (Input []) outp)"
+  apply(subgoal_tac "EOF = -1")
+   using eval_bf.intros(9) apply (metis diff_0)
+  apply(simp add: EOF_def)
+  done
 
-lemma "bounded_machine limit prog rs (tpe, buf) = Result (Tape lt' c' rt', Buffer inp' read_byte outp') \<Longrightarrow>
-       buf = Buffer inp read_byte outp (*\<Longrightarrow> rs = []*)
+lemma "bounded_machine limit prog rs (tpe, Buffer inp read_byte outp) = Result (Tape lt' c' rt', Buffer inp' read_byte outp')
+       (*buf = Buffer inp read_byte outp *)(*\<Longrightarrow> rs = []*)
         \<Longrightarrow> 
         eval_bf prog (Normal tpe (Input inp) (Output outp))  (Normal (Tape lt' c' rt') (Input inp') (Output outp'))"
   thm bounded_machine.induct
-  apply(induction limit prog rs "(tpe, buf)" arbitrary: tpe lt' c' rt' inp' outp' rule: bounded_machine.induct)
+  apply(induction limit prog rs "(tpe, Buffer inp read_byte outp)" arbitrary: tpe lt' c' rt' inp inp' outp' outp rule: bounded_machine.induct)
   apply(simp_all)
   apply(auto intro: eval_bf.intros)[1]
-  apply(rule_tac s'="Normal (Tape (left tpe) (cur tpe + 1) (right tpe)) (Input inp) (Output outp)" in seq')
-  apply(case_tac tpe)
+  apply(rule_tac s'="Normal (Tape (left tape) (cur tape + 1) (right tape)) (Input inp) (Output outp)" in seq')
+  apply(case_tac tape)
   apply(auto intro: eval_bf.intros)[2]
-  apply(rule_tac s'="Normal (Tape (left tpe) (cur tpe - 1) (right tpe)) (Input inp) (Output outp)" in seq')
-  apply(case_tac tpe)
+  apply(rule_tac s'="Normal (Tape (left tape) (cur tape - 1) (right tape)) (Input inp) (Output outp)" in seq')
+  apply(case_tac tape)
   apply(auto intro: eval_bf.intros)[2]
-  apply(rule_tac s'="Normal (tape_shift_left tpe) (Input inp) (Output outp)" in seq')
-  apply(case_tac tpe)
-  apply(auto intro: eval_bf.intros)[2]
-  (*error*)
-  defer
-  apply(rule_tac s'="Normal (tape_shift_right tpe) (Input inp) (Output outp)" in seq')
+  apply(case_tac "tape_shift_left' tape")
+  apply(auto intro: eval_bf.intros)[1]
+  apply(simp)
+  apply(rename_tac "shifted_tape")
+  apply(rule_tac s'="Normal shifted_tape (Input inp) (Output outp)" in seq')
+  apply(auto intro: eval_bf.intros eval_bf_tape_shift_left')[2]
+  apply(rule_tac s'="Normal (tape_shift_right tape) (Input inp) (Output outp)" in seq')
   apply(auto simp add: eval_bf_tape_shift_right intro: eval_bf.intros)[2]
+  
+  apply(case_tac inp)
+  apply(rule_tac s'="Normal (Tape (left tape) EOF (right tape)) (Input inp) (Output outp)" in seq')
+  apply(case_tac tape)
+  apply(auto intro: eval_bf_intro_In_EOF)[2]
+  apply(rename_tac i inplist)
+  apply(rule_tac s'="Normal (Tape (left tape) i (right tape)) (Input inplist) (Output outp)" in seq')
+  apply(case_tac tape)
+  apply(auto intro: eval_bf.intros)[2]
+
+  apply(rule_tac s'="Normal tape (Input inp) (Output (cur tape # outp))" in seq')
+  apply(case_tac tape)
+  apply(auto intro: eval_bf.intros)[2]
+  
   
   oops
 
