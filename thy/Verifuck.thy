@@ -158,7 +158,7 @@ fun skip_loop_backward :: "instr list \<Rightarrow> instr list \<Rightarrow> nat
 "skip_loop_backward cs (Pool # rs) n = skip_loop_backward (Pool#cs) rs (n + 1)"  |
 "skip_loop_backward cs (c#rs) n = skip_loop_backward (c#cs) rs n" 
 
-lemma "skip_loop_forward cs rs n = Result (cs', rs') \<Longrightarrow>
+lemma skip_loop_forward_Result_Pool: "skip_loop_forward cs rs n = Result (cs', rs') \<Longrightarrow>
        hd rs' = Pool"
 by(induction cs rs n arbitrary: cs' rs' rule: skip_loop_forward.induct) auto
 

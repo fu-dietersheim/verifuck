@@ -9,6 +9,13 @@ datatype 'a outp = Output "'a list"
 datatype 'a inp = Input "'a list"
 datatype 'a state = Error | Normal "'a tape" "'a inp" "'a outp"
 
+fun aligned_parenthesis :: "instr list \<Rightarrow> nat \<Rightarrow> bool" where
+  "aligned_parenthesis [] 0 = True" |
+  "aligned_parenthesis [] _ = False" |
+  "aligned_parenthesis (Loop#cs) n = aligned_parenthesis cs (Suc n)" |
+  "aligned_parenthesis (Pool#_) 0 = False" |
+  "aligned_parenthesis (Pool#cs) (Suc n) = aligned_parenthesis cs n" | 
+  "aligned_parenthesis (c#cs) n = aligned_parenthesis cs n"
 
 inductive eval_bf :: "instr list \<Rightarrow> 'a::{zero,one,plus,minus} state \<Rightarrow> 'a state \<Rightarrow> bool"  where
 init:  "s = s' \<Longrightarrow> eval_bf [] s s'" |
@@ -25,8 +32,21 @@ seq:  "eval_bf code s s' \<Longrightarrow> eval_bf code' s' s'' \<Longrightarrow
 whileTrue:      "c \<noteq> 0 \<Longrightarrow> eval_bf code (Normal (Tape lt c rt) inp outp) (Normal (Tape lt'' c'' rt'') inp'' outp'') \<Longrightarrow>
                   eval_bf ([Loop]@code@[Pool])  (Normal (Tape lt'' c'' rt'') inp'' outp') (Normal (Tape lt' c' rt') inp' outp') \<Longrightarrow>
         eval_bf ([Loop]@code@[Pool])  (Normal (Tape lt c rt) inp outp)       (Normal (Tape lt' c' rt') inp' outp')" |
-whileFalse:      "c = 0 \<Longrightarrow> 
+
+(*is this correct? what if not aligned_parenthesis ?*)
+whileFalse:      "c = 0 \<Longrightarrow>  aligned_parenthesis code 0 \<Longrightarrow>
         eval_bf ([Loop]@code@[Pool])  (Normal (Tape lt c rt) inp outp)       (Normal (Tape lt c rt) inp outp)" 
+
+
+lemma skip_loop_forward_aligned: 
+  "skip_loop_forward cs rs n = Result ([], rs') \<Longrightarrow> aligned_parenthesis cs (Suc n)"
+apply(induction cs arbitrary: n rs)
+ apply(simp; fail)
+apply(case_tac a)
+       apply(simp_all)
+apply(case_tac n)
+ apply(simp_all)
+done
 
 
 inductive_cases b_bf_init: "eval_bf [] s s'"
@@ -157,11 +177,32 @@ lemma eval_bf_intro_In_EOF:
   apply(simp add: EOF_def)
   done
 
+lemma "(\<And>cs' rs' lt' c' rt' inp' outp'.
+           skip_loop_forward cs (Loop # rs) 0 = Result (cs', rs') \<Longrightarrow>
+           bounded_machine n cs' rs' (tpe, Buffer inp read_byte outp) = Result (Tape lt' c' rt', Buffer inp' read_byte outp') \<Longrightarrow>
+           eval_bf cs' (Normal tpe (Input inp) (Output outp)) (Normal (Tape lt' c' rt') (Input inp') (Output outp'))) \<Longrightarrow>
+       (case skip_loop_forward cs (Loop # rs) 0 of either.Error err \<Rightarrow> either.Error (err, rev rs, cs, tpe, Buffer inp read_byte outp)
+        | Result (cs', rs') \<Rightarrow> bounded_machine n cs' rs' (tpe, Buffer inp read_byte outp)) =
+       Result (Tape lt' c' rt', Buffer inp' read_byte outp') \<Longrightarrow>
+       cur tpe = 0 \<Longrightarrow> eval_bf (Loop # cs) (Normal tpe (Input inp) (Output outp)) (Normal (Tape lt' c' rt') (Input inp') (Output outp'))"
+apply(case_tac "skip_loop_forward cs (Loop # rs) 0")
+apply(simp;fail)
+apply(simp)
+apply(rename_tac x2, case_tac x2)
+apply(simp)
+apply(frule skip_loop_forward_Result_Pool)
+apply(induction cs)
+apply(simp; fail)
+apply(simp)
+oops
+
 lemma "bounded_machine limit prog rs (tpe, Buffer inp read_byte outp) = Result (Tape lt' c' rt', Buffer inp' read_byte outp')
        (*buf = Buffer inp read_byte outp *)(*\<Longrightarrow> rs = []*)
         \<Longrightarrow> 
         eval_bf prog (Normal tpe (Input inp) (Output outp))  (Normal (Tape lt' c' rt') (Input inp') (Output outp'))"
   thm bounded_machine.induct
+(*It won't work anyway because the case where prog starts with Pool is unprovable
+  the lemma needs to use rs too!*)
   apply(induction limit prog rs "(tpe, Buffer inp read_byte outp)" arbitrary: tpe lt' c' rt' inp inp' outp' outp rule: bounded_machine.induct)
   apply(simp_all)
   apply(auto intro: eval_bf.intros)[1]
@@ -192,6 +233,13 @@ lemma "bounded_machine limit prog rs (tpe, Buffer inp read_byte outp) = Result (
   apply(rule_tac s'="Normal tape (Input inp) (Output (cur tape # outp))" in seq')
   apply(case_tac tape)
   apply(auto intro: eval_bf.intros)[2]
+
+  apply(case_tac "cur tpe = 0")
+  apply(simp_all)
+  apply(thin_tac "(\<And>lt' c' rt' inp' outp'.
+           False \<Longrightarrow>
+           _ lt' c' rt' inp' outp'\<Longrightarrow>
+           _ lt' c' rt' inp' outp')")
   
   
   oops
