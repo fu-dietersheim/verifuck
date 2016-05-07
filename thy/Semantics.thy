@@ -49,10 +49,21 @@ apply(case_tac n)
 done
 
 
-inductive_cases b_bf_init: "eval_bf [] s s'"
-thm b_bf_init
+inductive_cases "eval_bf [] s s'"
+
 inductive_cases b_bf_while: "eval_bf (Loop # code @ [Pool]) s s'"
 thm b_bf_while
+
+
+(*inductive_cases for [] is not so good*)
+lemma b_bf_init: "eval_bf [] s s' \<Longrightarrow> (s' = s \<Longrightarrow> P) \<Longrightarrow> P"
+proof - 
+  assume "eval_bf [] s s'" and "s' = s \<Longrightarrow> P"
+  have "eval_bf prog s s' \<Longrightarrow> prog = [] \<Longrightarrow> (s' = s \<Longrightarrow> P) \<Longrightarrow> P" for prog
+    proof(induction prog s s' rule: eval_bf.induct)
+    qed(auto intro: eval_bf.intros)
+  thus ?thesis using \<open>eval_bf [] s s'\<close> and \<open>s' = s \<Longrightarrow> P\<close> by simp
+qed
 
 lemma subst1: "cmd#code' = [cmd]@code'" by (metis append_Cons append_Nil)
 
@@ -240,9 +251,133 @@ lemma "bounded_machine limit prog rs (tpe, Buffer inp read_byte outp) = Result (
            False \<Longrightarrow>
            _ lt' c' rt' inp' outp'\<Longrightarrow>
            _ lt' c' rt' inp' outp')")
-  
+  apply(simp split: either.split_asm)
   
   oops
+
+
+lemma bounded_machine_eval_bf_empty: 
+      "(\<exists>limit. bounded_machine limit [] rs (tpe, Buffer inp read_byte outp) = Result (tpe', Buffer inp' read_byte outp'))
+       \<longleftrightarrow>
+       eval_bf [] (Normal tpe (Input inp) (Output outp))  (Normal tpe' (Input inp') (Output outp'))"
+apply(rule iffI)
+ apply(elim exE, rename_tac limit)
+ apply(case_tac limit)
+  apply(simp; fail)
+ apply(simp)
+ apply(auto intro: eval_bf.intros)[1]
+apply(erule b_bf_init)
+apply(simp)
+apply(rule_tac x=1 in exI)
+apply(simp; fail)
+done
+
+definition "initstatecomply cs tpe_init tpe_init' inp_init inp_init' outp_init outp_init' \<equiv>
+  (\<exists>limit. bounded_machine limit cs [] (tpe_init, Buffer inp_init read_byte outp_init) = Result (tpe_init', Buffer inp_init' read_byte outp_init'))
+   \<and> (*formerly was: \<longleftrightarrow>*)
+   eval_bf cs (Normal tpe_init (Input inp_init) (Output outp_init))  (Normal tpe_init' (Input inp_init') (Output outp_init'))"
+
+(*initstatecomply can be used in the induction to generalize and strengthen the IH*)
+lemma "initstatecomply [] tpe_init tpe_init inp_init inp_init outp_init outp_init"
+apply(simp add: initstatecomply_def)
+apply(rule conjI)
+ apply(rule_tac x=1 in exI)
+ apply(simp; fail)
+apply(auto intro: eval_bf.intros)[1]
+done
+
+lemma "bounded_machine n cs rs (tpe_init', Buffer inp_init' read_byte outp_init') = Result (tpe', Buffer inp' read_byte outp') \<Longrightarrow>
+(\<exists>limit. bounded_machine limit (rev rs) [] (tpe_init, Buffer inp_init read_byte outp_init) = 
+            Result (tape, Buffer inp_init' read_byte outp_init'))"
+oops
+
+
+lemma bounded_machine_moreSteps: 
+      "bounded_machine n cs rs m = Result m' \<Longrightarrow> 
+          bounded_machine (n + n') cs rs m = Result m'"
+apply(induction n cs rs m
+        arbitrary: m'
+        rule: bounded_machine.induct)
+apply(simp_all split: either.split_asm split_if_asm)
+apply auto
+done
+
+lemma bounded_machine_moreSteps_helper: 
+      "bounded_machine n cs rs m = Result m' \<Longrightarrow> 
+          bounded_machine (Suc (x + n)) cs rs m = Result m'"
+apply(induction n cs rs m
+        arbitrary: m'
+        rule: bounded_machine.induct)
+apply(simp_all split: either.split_asm split_if_asm)
+apply auto
+done
+
+lemma bounded_machine_SucD: 
+      "bounded_machine n cs rs m = Result m' \<Longrightarrow> 
+          bounded_machine (Suc n) cs rs m = Result m'"
+apply(induction n cs rs m
+        arbitrary: m'
+        rule: bounded_machine.induct)
+apply(simp_all split: either.split_asm split_if_asm)
+apply auto
+done
+
+lemma "bounded_machine n1 cs rs (tpe, Buffer inp read_byte outp) = Result (tpe', Buffer inp' read_byte outp') \<Longrightarrow>
+   bounded_machine n2 (rev rs) [] (tpe_init, Buffer inp_init read_byte outp_init) = Result (tpe, Buffer inp read_byte outp) \<Longrightarrow>
+  bounded_machine (n1+n2) (rev rs @ cs) [] (tpe_init, Buffer inp_init read_byte outp_init) = Result (tpe', Buffer inp' read_byte outp')"
+apply(induction n1 cs rs "(tpe, Buffer inp read_byte outp)"
+        arbitrary: tpe tpe' inp inp' outp outp' tpe_init inp_init outp_init n2 
+        rule: bounded_machine.induct)
+apply(simp_all)
+apply(rule bounded_machine_moreSteps_helper)
+apply(simp; fail)
+oops
+
+lemma initstatecomply_revrsE: "initstatecomply (rev rs) tpe_init tpe_init' inp_init inp_init' outp_init outp_init'
+   \<Longrightarrow>
+   bounded_machine n cs rs (tpe_init', Buffer inp_init' read_byte outp_init') = Result (tpe', Buffer inp' read_byte outp') \<Longrightarrow>
+   eval_bf cs (Normal tpe_init' (Input inp_init') (Output outp_init')) (Normal tpe' (Input inp') (Output outp'))
+   \<Longrightarrow>
+   eval_bf (rev rs @ cs) (Normal tpe_init (Input inp_init) (Output outp_init)) (Normal tpe' (Input inp') (Output outp'))"
+apply(rule_tac s'="Normal tpe_init' (Input inp_init') (Output outp_init')" in seq)
+ apply(simp_all)
+apply(simp add: initstatecomply_def)
+(*
+apply(subgoal_tac "\<exists>limit. bounded_machine limit (rev rs) [] (tpe_init, Buffer inp_init read_byte outp_init) =
+             Result (tpe_init', Buffer inp_init' read_byte outp_init')")
+ apply blast
+apply(simp add: initstatecomply_def[symmetric])
+(*good until here*)
+apply(thin_tac "initstatecomply _ _ _ _ _ _ _ ")
+apply(induction n cs rs "(tpe_init', Buffer inp_init' read_byte outp_init')" rule: bounded_machine.induct)
+apply(simp_all)
+apply(auto dest: eval_bf_emptyD)[1]
+apply(rule_tac x=1 in exI)
+apply(simp)
+oops*)
+done
+
+lemma "initstatecomply (rev rs) tpe_init tpe_init' inp_init inp_init' outp_init outp_init'
+  \<Longrightarrow>
+  bounded_machine limit prog rs (tpe_init', Buffer inp_init' read_byte outp_init') = Result (tpe', Buffer inp' read_byte outp')
+    \<Longrightarrow> 
+    eval_bf (rev rs @ prog) (Normal tpe_init (Input inp_init) (Output outp_init))  (Normal tpe' (Input inp') (Output outp'))"
+  apply(induction limit prog rs "(tpe_init', Buffer inp_init' read_byte outp_init')"
+          arbitrary: tpe_init tpe_init' tpe' inp_init' inp' outp' outp_init'
+          rule: bounded_machine.induct)
+  apply(simp; fail)
+  apply(simp)
+  apply(erule initstatecomply_revrsE[where cs="[]" and n="1", simplified])
+  apply(auto intro: eval_bf.intros)[2]
+
+  apply(simp)
+
+  apply(rule_tac n="(Suc n)" in initstatecomply_revrsE, simp, simp)
+  apply(rule_tac s'="Normal (Tape (left tape) (cur tape + 1) (right tape)) (Input inp_init') (Output outp_init')" in seq')
+  apply(case_tac tape)
+  apply(auto intro: eval_bf.intros)[2]
+  oops
+
 
 
 lemma "bounded_machine limit prog rs (tpe, buf) = Result result
