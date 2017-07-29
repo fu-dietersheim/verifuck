@@ -166,10 +166,30 @@ lemma "skip_loop_backward cs rs n = Result (cs', rs') \<Longrightarrow>
        hd cs' = Loop"
 by(induction cs rs n arbitrary: cs' rs' rule: skip_loop_backward.induct) auto
 
-lemma "skip_loop_forward cs rs n = Result (cs', rs') \<Longrightarrow>
+lemma skip_loop_forward_Reuslt: "skip_loop_forward cs rs n = Result (cs', rs') \<Longrightarrow>
         rev rs @ cs = rev rs' @ cs'"
 by(induction cs rs n arbitrary: cs' rs' rule: skip_loop_forward.induct) auto
-
+  
+lemma skip_loop_forward_Reuslt_cs: "skip_loop_forward cs rs n = Result (cs', rs') \<Longrightarrow>
+       cs = (drop (length rs) (rev rs')) @ cs'"
+  apply(induction cs rs n arbitrary: cs' rs' rule: skip_loop_forward.induct)
+                 apply auto (*This proof is yolo*)
+               apply (smt append.assoc append_Nil append_eq_append_conv_if append_eq_conv_conj append_is_Nil_conv append_same_eq append_take_drop_id drop_all drop_append length_rev rev.simps(2) rev_append rev_rev_ident skip_loop_forward_Reuslt)
+              apply (smt append.assoc append_Nil append_eq_append_conv_if append_eq_conv_conj append_is_Nil_conv append_same_eq append_take_drop_id drop_all drop_append length_rev rev.simps(2) rev_append rev_rev_ident skip_loop_forward_Reuslt)
+             apply (smt append.assoc append_Nil append_eq_append_conv_if append_eq_conv_conj append_is_Nil_conv append_same_eq append_take_drop_id drop_all drop_append length_rev rev.simps(2) rev_append rev_rev_ident skip_loop_forward_Reuslt)
+            apply (smt append.assoc append_Nil append_eq_append_conv_if append_eq_conv_conj append_is_Nil_conv append_same_eq append_take_drop_id drop_all drop_append length_rev rev.simps(2) rev_append rev_rev_ident skip_loop_forward_Reuslt)
+           apply (smt append.assoc append_Nil append_eq_append_conv_if append_eq_conv_conj append_is_Nil_conv append_same_eq append_take_drop_id drop_all drop_append length_rev rev.simps(2) rev_append rev_rev_ident skip_loop_forward_Reuslt)
+          apply (smt append.assoc append_Nil append_eq_append_conv_if append_eq_conv_conj append_is_Nil_conv append_same_eq append_take_drop_id drop_all drop_append length_rev rev.simps(2) rev_append rev_rev_ident skip_loop_forward_Reuslt)
+         apply (smt append.assoc append_Nil append_eq_append_conv_if append_eq_conv_conj append_is_Nil_conv append_same_eq append_take_drop_id drop_all drop_append length_rev rev.simps(2) rev_append rev_rev_ident skip_loop_forward_Reuslt)
+        apply (smt append.assoc append_Nil append_eq_append_conv_if append_eq_conv_conj append_is_Nil_conv append_same_eq append_take_drop_id drop_all drop_append length_rev rev.simps(2) rev_append rev_rev_ident skip_loop_forward_Reuslt)
+       apply (smt append.assoc append_Nil append_eq_append_conv_if append_eq_conv_conj append_is_Nil_conv append_same_eq append_take_drop_id drop_all drop_append length_rev rev.simps(2) rev_append rev_rev_ident skip_loop_forward_Reuslt)
+      apply (smt append.assoc append_Nil append_eq_append_conv_if append_eq_conv_conj append_is_Nil_conv append_same_eq append_take_drop_id drop_all drop_append length_rev rev.simps(2) rev_append rev_rev_ident skip_loop_forward_Reuslt)
+     apply (smt append.assoc append_Nil append_eq_append_conv_if append_eq_conv_conj append_is_Nil_conv append_same_eq append_take_drop_id drop_all drop_append length_rev rev.simps(2) rev_append rev_rev_ident skip_loop_forward_Reuslt)
+    apply (smt append.assoc append_Nil append_eq_append_conv_if append_eq_conv_conj append_is_Nil_conv append_same_eq append_take_drop_id drop_all drop_append length_rev rev.simps(2) rev_append rev_rev_ident skip_loop_forward_Reuslt)
+   apply (smt append.assoc append_Nil append_eq_append_conv_if append_eq_conv_conj append_is_Nil_conv append_same_eq append_take_drop_id drop_all drop_append length_rev rev.simps(2) rev_append rev_rev_ident skip_loop_forward_Reuslt)
+  apply (smt append.assoc append_Nil append_eq_append_conv_if append_eq_conv_conj append_is_Nil_conv append_same_eq append_take_drop_id drop_all drop_append length_rev rev.simps(2) rev_append rev_rev_ident skip_loop_forward_Reuslt)
+  done
+    
 lemma "skip_loop_backward cs rs n = Result (cs', rs') \<Longrightarrow>
         rev rs @ cs = rev rs' @ cs'"
 by(induction cs rs n arbitrary: cs' rs' rule: skip_loop_backward.induct) auto

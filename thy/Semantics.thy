@@ -192,20 +192,23 @@ lemma "(\<And>cs' rs' lt' c' rt' inp' outp'.
            skip_loop_forward cs (Loop # rs) 0 = Result (cs', rs') \<Longrightarrow>
            bounded_machine n cs' rs' (tpe, Buffer inp read_byte outp) = Result (Tape lt' c' rt', Buffer inp' read_byte outp') \<Longrightarrow>
            eval_bf cs' (Normal tpe (Input inp) (Output outp)) (Normal (Tape lt' c' rt') (Input inp') (Output outp'))) \<Longrightarrow>
-       (case skip_loop_forward cs (Loop # rs) 0 of either.Error err \<Rightarrow> either.Error (err, rev rs, cs, tpe, Buffer inp read_byte outp)
-        | Result (cs', rs') \<Rightarrow> bounded_machine n cs' rs' (tpe, Buffer inp read_byte outp)) =
-       Result (Tape lt' c' rt', Buffer inp' read_byte outp') \<Longrightarrow>
-       cur tpe = 0 \<Longrightarrow> eval_bf (Loop # cs) (Normal tpe (Input inp) (Output outp)) (Normal (Tape lt' c' rt') (Input inp') (Output outp'))"
+       (case skip_loop_forward cs (Loop # rs) 0 of
+            either.Error err \<Rightarrow> either.Error (err, rev rs, cs, tpe, Buffer inp read_byte outp)
+          | Result (cs', rs') \<Rightarrow> bounded_machine n cs' rs' (tpe, Buffer inp read_byte outp))
+        = Result (Tape lt' c' rt', Buffer inp' read_byte outp') \<Longrightarrow>
+       cur tpe = 0 \<Longrightarrow> 
+       eval_bf (Loop # cs) (Normal tpe (Input inp) (Output outp)) (Normal (Tape lt' c' rt') (Input inp') (Output outp'))"
 apply(case_tac "skip_loop_forward cs (Loop # rs) 0")
-apply(simp;fail)
+ apply(simp;fail)
 apply(simp)
 apply(rename_tac x2, case_tac x2)
 apply(simp)
 apply(frule skip_loop_forward_Result_Pool)
 apply(induction cs)
-apply(simp; fail)
+ apply(simp; fail)
 apply(simp)
-oops
+  oops
+    
 
 lemma "bounded_machine limit prog rs (tpe, Buffer inp read_byte outp) = Result (Tape lt' c' rt', Buffer inp' read_byte outp')
        (*buf = Buffer inp read_byte outp *)(*\<Longrightarrow> rs = []*)
@@ -251,8 +254,17 @@ lemma "bounded_machine limit prog rs (tpe, Buffer inp read_byte outp) = Result (
            False \<Longrightarrow>
            _ lt' c' rt' inp' outp'\<Longrightarrow>
            _ lt' c' rt' inp' outp')")
-  apply(simp split: either.split_asm)
-  
+    apply(simp split: either.split_asm)
+    apply(rename_tac skipfwdres, case_tac skipfwdres, simp)
+    apply(frule skip_loop_forward_Result_Pool)
+    apply(frule skip_loop_forward_Reuslt_cs)
+    apply(simp)
+    apply(case_tac b)
+     apply(frule skip_loop_forward_Reuslt)
+     apply(simp; fail)
+    apply(simp)
+    thm seq_while_split[simplified]
+    apply(rule seq_while_split[simplified])
   oops
 
 
