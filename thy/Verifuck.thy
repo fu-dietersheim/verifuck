@@ -124,7 +124,7 @@ definition char_to_byte :: "char \<Rightarrow> 8 word" where
   "char_to_byte c \<equiv> of_nat (nat_of_char c)"
 
 lemma "let result = run_bf (parse_instrs hello_world) ([]::8 word list) in
-         map byte_to_char result = ''Hello World!'' @ [CHR ''\<newline>'', Char Nibble0 NibbleD]" by eval
+         map byte_to_char result = ''Hello World!'' @ [CHR ''\<newline>'', CHR 0x0D]" by eval
 
 export_code run_bf in Haskell
 
@@ -221,6 +221,6 @@ definition run_bf_bounded :: "nat \<Rightarrow> instr list \<Rightarrow> 8 word 
 
 
 lemma "case run_bf_bounded 1024 (parse_instrs hello_world) [] of Result result \<Rightarrow>
-         map byte_to_char result = ''Hello World!'' @ [CHR ''\<newline>'', Char Nibble0 NibbleD]" by eval
+         map byte_to_char result = ''Hello World!'' @ [CHR ''\<newline>'', CHR 0x0D]" by eval
 
 end

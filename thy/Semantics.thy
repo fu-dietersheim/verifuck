@@ -298,7 +298,7 @@ lemma bounded_machine_moreSteps:
 apply(induction n cs rs m
         arbitrary: m'
         rule: bounded_machine.induct)
-apply(simp_all split: either.split_asm split_if_asm)
+apply(simp_all split: either.split_asm if_split_asm)
 apply auto
 done
 
@@ -308,7 +308,7 @@ lemma bounded_machine_moreSteps_helper:
 apply(induction n cs rs m
         arbitrary: m'
         rule: bounded_machine.induct)
-apply(simp_all split: either.split_asm split_if_asm)
+apply(simp_all split: either.split_asm if_split_asm)
 apply auto
 done
 
@@ -318,7 +318,7 @@ lemma bounded_machine_SucD:
 apply(induction n cs rs m
         arbitrary: m'
         rule: bounded_machine.induct)
-apply(simp_all split: either.split_asm split_if_asm)
+apply(simp_all split: either.split_asm if_split_asm)
 apply auto
 done
 
