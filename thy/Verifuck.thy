@@ -260,4 +260,10 @@ definition run_bf_bounded :: "nat \<Rightarrow> instr list \<Rightarrow> 8 word 
 lemma "case run_bf_bounded 1024 (parse_instrs hello_world) [] of Inr result \<Rightarrow>
          map byte_to_char result = ''Hello World!'' @ [CHR ''\<newline>'', CHR 0x0D]" by eval
 
+
+
+theorem "bounded_machine n prog [] m = Inr m' \<Longrightarrow>
+ interp_bf (init_stacked_instr_list_state prog) m = Some m'"
+  oops (*todo lars*)
+
 end
