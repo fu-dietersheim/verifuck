@@ -44,7 +44,7 @@ fun tape_shift_left :: "'a::zero tape \<Rightarrow> 'a tape" where
 datatype ('a, 'b) io = Buffer (state: 'b) (read: "'b \<Rightarrow> ('a \<times> 'b)") (out_buf: "'a list")
 
 datatype ('a, 'b) machine = Machine (tape: "'a tape") (io_state: "('a, 'b) io")
-  
+
 definition map_tape :: "('a tape \<Rightarrow> 'a tape) \<Rightarrow> ('a, 'b) machine  \<Rightarrow> ('a, 'b) machine" where
   "map_tape f m \<equiv> Machine (f (tape m)) (io_state m)"
   
@@ -260,7 +260,11 @@ definition run_bf_bounded :: "nat \<Rightarrow> instr list \<Rightarrow> 8 word 
 lemma "case run_bf_bounded 1024 (parse_instrs hello_world) [] of Inr result \<Rightarrow>
          map byte_to_char result = ''Hello World!'' @ [CHR ''\<newline>'', CHR 0x0D]" by eval
 
-
+lemma "bounded_machine n prog rs m = Inr m' \<Longrightarrow>
+ interp_bf (init_stacked_instr_list_state prog) m = Some m'"
+  apply(induction n prog rs m rule: bounded_machine.induct)
+    apply(simp_all add: init_stacked_instr_list_state_def interp_bf.simps map_tape_def split: list.splits)
+oops
 
 theorem "bounded_machine n prog [] m = Inr m' \<Longrightarrow>
  interp_bf (init_stacked_instr_list_state prog) m = Some m'"
