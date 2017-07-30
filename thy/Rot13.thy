@@ -38,9 +38,9 @@ value[code] "map byte_to_char (run_bf (parse_instrs rot13) (map char_to_byte ''H
 lemma "let result = run_bf (parse_instrs rot13) (map char_to_byte ''Hello World!'') in
          map byte_to_char result = ''Uryyb Jbeyq!''" by eval
 
-value "bounded_machine 102 (parse_instrs rot13) [] (empty_tape, Buffer (map char_to_byte ''Hello World!'') read_byte [])"
+value "bounded_machine 102 (parse_instrs rot13) [] (Machine empty_tape (Buffer (map char_to_byte ''Hello World!'') read_byte []))"
 
-lemma "case run_bf_bounded 60000 (parse_instrs rot13) (map char_to_byte ''Hello World!'') of Result result \<Rightarrow>
+lemma "case run_bf_bounded 60000 (parse_instrs rot13) (map char_to_byte ''Hello World!'') of Inr result \<Rightarrow>
          map byte_to_char result = ''Uryyb Jbeyq!''" by eval
 
 

@@ -155,41 +155,38 @@ export_code run_bf in Haskell
 
 
 
-datatype ('a, 'b) either = Error 'a | Result 'b
+fun tape_shift_left' :: "'a tape \<Rightarrow> (string + 'a tape)" where
+"tape_shift_left' (Tape [] c r) = Inl ''cannot shift tape left: end of tape''" |
+"tape_shift_left' (Tape (l # ls) c r) = Inr (Tape ls l (c # r))"
 
 
-fun tape_shift_left' :: "'a tape \<Rightarrow> (string, 'a tape) either" where
-"tape_shift_left' (Tape [] c r) = Error ''cannot shift tape left: end of tape''" |
-"tape_shift_left' (Tape (l # ls) c r) = Result (Tape ls l (c # r))"
-
-
-fun skip_loop_forward :: "instr list \<Rightarrow> instr list \<Rightarrow> nat \<Rightarrow> (string, instr list \<times> instr list) either" where
-"skip_loop_forward [] rs _ = Error ''unbalanced [] expected ]''" |
-"skip_loop_forward (Pool # cs) rs 0 = Result (cs, Pool#rs)" |
+fun skip_loop_forward :: "instr list \<Rightarrow> instr list \<Rightarrow> nat \<Rightarrow> string + (instr list \<times> instr list)" where
+"skip_loop_forward [] rs _ = Inl ''unbalanced [] expected ]''" |
+"skip_loop_forward (Pool # cs) rs 0 = Inr (cs, Pool#rs)" |
 "skip_loop_forward (Pool # cs) rs (Suc n) = skip_loop_forward cs (Pool#rs) n" |
 "skip_loop_forward (Loop # cs) rs n = skip_loop_forward cs (Loop#rs) (n + 1)"  |
 "skip_loop_forward (c # cs) rs n = skip_loop_forward cs (c#rs) n"
 
-fun skip_loop_backward :: "instr list \<Rightarrow> instr list \<Rightarrow> nat \<Rightarrow> (string, instr list \<times> instr list) either" where
-"skip_loop_backward cs [] _ = Error ''unbalanced [] expected [''" |
-"skip_loop_backward cs (Loop # rs) 0 = Result (Loop#cs, rs)" |
+fun skip_loop_backward :: "instr list \<Rightarrow> instr list \<Rightarrow> nat \<Rightarrow> string + (instr list \<times> instr list)" where
+"skip_loop_backward cs [] _ = Inl ''unbalanced [] expected [''" |
+"skip_loop_backward cs (Loop # rs) 0 = Inr (Loop#cs, rs)" |
 "skip_loop_backward cs (Loop # rs) (Suc n) = skip_loop_backward (Loop#cs) rs n" |
 "skip_loop_backward cs (Pool # rs) n = skip_loop_backward (Pool#cs) rs (n + 1)"  |
 "skip_loop_backward cs (c#rs) n = skip_loop_backward (c#cs) rs n" 
 
-lemma skip_loop_forward_Result_Pool: "skip_loop_forward cs rs n = Result (cs', rs') \<Longrightarrow>
+lemma skip_loop_forward_Result_Pool: "skip_loop_forward cs rs n = Inr (cs', rs') \<Longrightarrow>
        hd rs' = Pool"
 by(induction cs rs n arbitrary: cs' rs' rule: skip_loop_forward.induct) auto
 
-lemma "skip_loop_backward cs rs n = Result (cs', rs') \<Longrightarrow>
+lemma "skip_loop_backward cs rs n = Inr (cs', rs') \<Longrightarrow>
        hd cs' = Loop"
 by(induction cs rs n arbitrary: cs' rs' rule: skip_loop_backward.induct) auto
 
-lemma skip_loop_forward_Reuslt: "skip_loop_forward cs rs n = Result (cs', rs') \<Longrightarrow>
+lemma skip_loop_forward_Result: "skip_loop_forward cs rs n = Inr (cs', rs') \<Longrightarrow>
         rev rs @ cs = rev rs' @ cs'"
 by(induction cs rs n arbitrary: cs' rs' rule: skip_loop_forward.induct) auto
   
-lemma skip_loop_forward_Reuslt_cs: "skip_loop_forward cs rs n = Result (cs', rs') \<Longrightarrow>
+lemma skip_loop_forward_Result_cs: "skip_loop_forward cs rs n = Inr (cs', rs') \<Longrightarrow>
        cs = (drop (length rs) (rev rs')) @ cs'"
 (*  apply(induction cs rs n arbitrary: cs' rs' rule: skip_loop_forward.induct)
                  apply auto (*This proof is yolo*)
@@ -208,9 +205,9 @@ lemma skip_loop_forward_Reuslt_cs: "skip_loop_forward cs rs n = Result (cs', rs'
    apply (smt append.assoc append_Nil append_eq_append_conv_if append_eq_conv_conj append_is_Nil_conv append_same_eq append_take_drop_id drop_all drop_append length_rev rev.simps(2) rev_append rev_rev_ident skip_loop_forward_Reuslt)
   apply (smt append.assoc append_Nil append_eq_append_conv_if append_eq_conv_conj append_is_Nil_conv append_same_eq append_take_drop_id drop_all drop_append length_rev rev.simps(2) rev_append rev_rev_ident skip_loop_forward_Reuslt)
 *)
-  done
+  oops
     
-lemma "skip_loop_backward cs rs n = Result (cs', rs') \<Longrightarrow>
+lemma "skip_loop_backward cs rs n = Inr (cs', rs') \<Longrightarrow>
         rev rs @ cs = rev rs' @ cs'"
 by(induction cs rs n arbitrary: cs' rs' rule: skip_loop_backward.induct) auto
 
@@ -218,49 +215,49 @@ value "skip_loop_forward [Incr, Incr, Pool, Incr] [Loop, Decr] 0"
 value "skip_loop_backward [Pool, Decr] [Incr, Incr, Loop, Incr] 0"
 
 
-(*steps left \<Rightarrow> current program \<Rightarrow> executed instructions \<Rightarrow> skip because we are in a loop? \<Rightarrow> ...*)
+(*steps left \<Rightarrow> current program \<Rightarrow> executed instructions \<Rightarrow> machine state \<Rightarrow> result*)
 fun  bounded_machine :: "nat \<Rightarrow> instr list \<Rightarrow> instr list \<Rightarrow> 
                           ('a::{zero,one,minus,plus}, 'b) machine \<Rightarrow>
-                          ((string \<times> instr list \<times> instr list \<times> ('a, 'b) machine),
-                           ('a, 'b) machine)
-                          either" where
-"bounded_machine 0 cs rs m  = Error (''Out of Instructions'', rev rs, cs, m)" | (*TODO: error out-of-instructions*)
-"bounded_machine _ [] _ m  = Result m" |
-"bounded_machine (Suc n) (Incr#cs) rs (tape, io) = bounded_machine n cs (Incr#rs) (tape_map_cur (\<lambda>x. x + 1) tape, io)" |
-"bounded_machine (Suc n) (Decr#cs) rs (tape, io) = bounded_machine n cs (Decr#rs) (tape_map_cur (\<lambda>x. x - 1) tape, io)" |
-"bounded_machine (Suc n) (Left#cs) rs (tape, io) = (case tape_shift_left' tape
-                                                          of Result tape' \<Rightarrow> bounded_machine n cs (Left#rs) (tape', io)
-                                                          |  Error err \<Rightarrow> Error (err, rev rs, cs, (tape, io))
+                           (string \<times> instr list \<times> instr list \<times> ('a, 'b) machine) +
+                           ('a, 'b) machine
+                          " where
+"bounded_machine 0 cs rs m  = Inl (''Out of Instructions'', rev rs, cs, m)" | (*TODO: error out-of-instructions*)
+"bounded_machine _ [] _ m  = Inr m" |
+"bounded_machine (Suc n) (Incr#cs) rs (Machine tpe io) = bounded_machine n cs (Incr#rs) (Machine (tape_map_cur (\<lambda>x. x + 1) tpe) io)" |
+"bounded_machine (Suc n) (Decr#cs) rs (Machine tpe io) = bounded_machine n cs (Decr#rs) (Machine (tape_map_cur (\<lambda>x. x - 1) tpe) io)" |
+"bounded_machine (Suc n) (Left#cs) rs (Machine tpe io) = (case tape_shift_left' tpe
+                                                          of Inr tape' \<Rightarrow> bounded_machine n cs (Left#rs) (Machine tape' io)
+                                                          |  Inl err \<Rightarrow> Inl (err, rev rs, cs, (Machine tpe io))
                                                    )" |
-"bounded_machine (Suc n) (Right#cs) rs (tape, io) = bounded_machine n cs (Right#rs) (tape_shift_right tape, io)" |
-"bounded_machine (Suc n) (In#cs) rs (tape, io) = bounded_machine n cs (In#rs)
-                                            (let (c, io') = read_io io in (tape_map_cur (\<lambda>_. c) tape, io'))" |
-"bounded_machine (Suc n) (Out#cs) rs (tape, io) = bounded_machine n cs (Out#rs) (tape, write_io (cur tape) io)" |
-"bounded_machine (Suc n) (Loop#cs) rs m = (if cur (fst m) = 0 then 
+"bounded_machine (Suc n) (Right#cs) rs (Machine tpe io) = bounded_machine n cs (Right#rs) (Machine (tape_shift_right tpe) io)" |
+"bounded_machine (Suc n) (In#cs) rs (Machine tpe io) = bounded_machine n cs (In#rs)
+                                            (let (c, io') = read_io io in (Machine (tape_map_cur (\<lambda>_. c) tpe) io'))" |
+"bounded_machine (Suc n) (Out#cs) rs (Machine tpe io) = bounded_machine n cs (Out#rs) (Machine tpe (write_io (cur tpe) io))" |
+"bounded_machine (Suc n) (Loop#cs) rs m = (if cur (tape m) = 0 then
                                            (case skip_loop_forward cs (Loop#rs) 0 of
-                                                   Result (cs', rs') \<Rightarrow> bounded_machine n cs' rs' m
-                                                 | Error err \<Rightarrow> Error (err, rev rs, cs, m))
+                                                   Inr (cs', rs') \<Rightarrow> bounded_machine n cs' rs' m
+                                                 | Inl err \<Rightarrow> Inl (err, rev rs, cs, m))
                                           else bounded_machine n cs (Loop#rs) m)" |
 "bounded_machine (Suc n) (Pool#cs) rs m = (case skip_loop_backward (Pool#cs) rs 0 of
-                                                   Result (cs', rs') \<Rightarrow> bounded_machine n cs' rs' m
-                                                 | Error err \<Rightarrow> Error (err, rev rs, cs, m))"
+                                                   Inr (cs', rs') \<Rightarrow> bounded_machine n cs' rs' m
+                                                 | Inl err \<Rightarrow> Inl (err, rev rs, cs, m))"
 
-value "bounded_machine 10 [Incr, Loop, Incr, Pool] [] (empty_tape, Buffer [] read_byte [])"
+value "bounded_machine 10 [Incr, Loop, Incr, Pool] [] (Machine empty_tape (Buffer [] read_byte []))"
 
-value "bounded_machine 40 [Incr, Loop, Incr, Out, Pool] [] (empty_tape, Buffer [] read_byte [])"
+value "bounded_machine 4000 [Incr, Loop, Incr, Out, Pool] [] (Machine empty_tape (Buffer [] read_byte []))"
 
-value "bounded_machine 40000 [Decr, Loop, Loop, Decr, Right, Incr, Left, Pool, Out, Decr, Pool] [] (empty_tape, Buffer [] read_byte [])"
+value "bounded_machine 400000 [Decr, Loop, Loop, Decr, Right, Incr, Left, Pool, Out, Decr, Pool] [] (Machine empty_tape (Buffer [] read_byte []))"
 
-value "bounded_machine limit prog [] (empty_tape, Buffer input read_byte [])"
+value "bounded_machine limit prog [] (Machine empty_tape (Buffer input read_byte []))"
 
 definition run_bf_bounded :: "nat \<Rightarrow> instr list \<Rightarrow> 8 word list \<Rightarrow>
-    (string \<times> instr list \<times> instr list \<times> (8 word, 8 word list) machine, 8 word list) either" where
-"run_bf_bounded limit prog input \<equiv> case bounded_machine limit prog [] (empty_tape, Buffer input read_byte [])
-    of Result (tape, buf) \<Rightarrow> Result (rev (out_buf buf))
-    |  Error err \<Rightarrow> Error err"
+    (string \<times> instr list \<times> instr list \<times> (8 word, 8 word list) machine) + (8 word list)" where
+"run_bf_bounded limit prog input \<equiv> case bounded_machine limit prog [] (Machine empty_tape (Buffer input read_byte []))
+    of Inr (Machine tpe buf) \<Rightarrow> Inr (rev (out_buf buf))
+    |  Inl err \<Rightarrow> Inl err"
 
 
-lemma "case run_bf_bounded 1024 (parse_instrs hello_world) [] of Result result \<Rightarrow>
+lemma "case run_bf_bounded 1024 (parse_instrs hello_world) [] of Inr result \<Rightarrow>
          map byte_to_char result = ''Hello World!'' @ [CHR ''\<newline>'', CHR 0x0D]" by eval
 
 end
