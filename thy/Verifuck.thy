@@ -3,7 +3,6 @@ imports
   Main
   "~~/src/HOL/Word/Word"
   "~~/src/HOL/Library/Code_Char"
-  (*"~~/src/HOL/Library/Monad_Syntax"*)
 begin
 
 datatype instr = Incr | Decr | Right | Left | Out | In | Loop | Pool
@@ -27,7 +26,9 @@ definition empty_tape :: "'a::zero tape" where
 "empty_tape = Tape [] 0 []"
 
 definition tape_map_cur :: "('a \<Rightarrow> 'a) \<Rightarrow> 'a tape \<Rightarrow> 'a tape" where
-[simp]: "tape_map_cur f tape = Tape (left tape) (f (cur tape)) (right tape)"
+  "tape_map_cur f tape = Tape (left tape) (f (cur tape)) (right tape)"
+
+lemma "tape_map_cur f (Tape l c r) = Tape l (f c) r" by(simp add: tape_map_cur_def)  
 
 fun tape_shift_right :: "'a::zero tape \<Rightarrow> 'a tape" where
 "tape_shift_right (Tape l c []) = Tape (c # l) 0 []" |
@@ -37,51 +38,68 @@ fun tape_shift_left :: "'a::zero tape \<Rightarrow> 'a tape" where
 "tape_shift_left (Tape [] c r) = Tape [] 0 (c # r)" |
 "tape_shift_left (Tape (l # ls) c r) = Tape ls l (c # r)"
 
+(*state: input buffer
+  read: read from state, produce new state
+  out_buf: output buffer*)
 datatype ('a, 'b) io = Buffer (state: 'b) (read: "'b \<Rightarrow> ('a \<times> 'b)") (out_buf: "'a list")
 
-type_synonym ('a, 'b) machine = "'a tape \<times> ('a, 'b) io"
-
+datatype ('a, 'b) machine = Machine (tape: "'a tape") (io_state: "('a, 'b) io")
+  
+definition map_tape :: "('a tape \<Rightarrow> 'a tape) \<Rightarrow> ('a, 'b) machine  \<Rightarrow> ('a, 'b) machine" where
+  "map_tape f m \<equiv> Machine (f (tape m)) (io_state m)"
+  
 definition read_io :: "('a, 'b) io \<Rightarrow> ('a \<times> ('a, 'b) io)" where
-[simp]: "read_io io = (let (c, state') = read io (state io) in (c, Buffer state' (read io) (out_buf io)))"
+  "read_io io = (let (c, state') = read io (state io) in (c, Buffer state' (read io) (out_buf io)))"
+
+lemma "read_io (Buffer s r out) = (fst (r s), Buffer (snd (r s)) r out)"
+  by(simp add: read_io_def split: prod.splits)
 
 definition write_io :: "'a \<Rightarrow> ('a, 'b) io \<Rightarrow> ('a, 'b) io" where
-[simp]: "write_io c io = Buffer (state io) (read io) (c # out_buf io)"
+  "write_io c io = Buffer (state io) (read io) (c # out_buf io)"
 
-type_synonym instr_table = "instr list \<times> instr list list"
+(*current program \<times> stack for loop*)
+type_synonym stacked_instr_list_state = "instr list \<times> instr list list"
 
-definition init_table :: "instr list \<Rightarrow> instr_table" where
-"init_table xs = (xs, [])"
+definition init_stacked_instr_list_state :: "instr list \<Rightarrow> stacked_instr_list_state" where
+  "init_stacked_instr_list_state xs = (xs, [])"
 
 fun next_machine :: "instr \<Rightarrow> ('a::{zero,one,minus,plus}, 'b) machine \<Rightarrow> ('a, 'b) machine" where
-"next_machine Incr = apfst (tape_map_cur (\<lambda>x. x + 1))" |
-"next_machine Decr = apfst (tape_map_cur (\<lambda>x. x - 1))" |
-"next_machine Left = apfst tape_shift_left" |
-"next_machine Right = apfst tape_shift_right" |
-"next_machine In = (\<lambda>(tape, io). let (c, io') = read_io io in (tape_map_cur (\<lambda>_. c) tape, io'))" |
-"next_machine Out = (\<lambda>(tape, io). (tape, write_io (cur tape) io))"
+"next_machine Incr = map_tape (tape_map_cur (\<lambda>x. x + 1))" |
+"next_machine Decr = map_tape (tape_map_cur (\<lambda>x. x - 1))" |
+"next_machine Left = map_tape tape_shift_left" |
+"next_machine Right = map_tape tape_shift_right" |
+"next_machine In = (\<lambda>m. let (c, io') = read_io (io_state m) in Machine (tape_map_cur (\<lambda>_. c) (tape m)) io')" |
+"next_machine Out = (\<lambda>m. Machine (tape m) (write_io (cur (tape m)) (io_state m)))"
 
-fun skip_loop :: "instr list \<Rightarrow> nat \<Rightarrow> instr list" where
-"skip_loop xs 0 = xs" |
+fun skip_loop :: "instr list \<Rightarrow> nat \<Rightarrow> (instr list) option" where
+"skip_loop xs 0 = Some xs" |
 "skip_loop (Loop # xs) n = skip_loop xs (n + 1)" |
 "skip_loop (Pool # xs) n = skip_loop xs (n - 1)" |
 "skip_loop (x # xs) n = skip_loop xs n" |
-"skip_loop [] n = []"
+"skip_loop _ _ = None"
 
-partial_function (tailrec) interp_bf :: "instr_table \<Rightarrow> ('a::{zero,one,minus,plus}, 'b) machine \<Rightarrow> ('a, 'b) machine" where
+partial_function (tailrec) interp_bf :: "stacked_instr_list_state \<Rightarrow> ('a::{zero,one,minus,plus}, 'b) machine \<Rightarrow> ('a, 'b) machine option" where
 "interp_bf tab m =
-  (case tab of ([], _) \<Rightarrow> m |
-               (Loop # is, stack) \<Rightarrow> if cur (fst m) = 0 then interp_bf (skip_loop is 1, stack) m else interp_bf (is, (Loop # is) # stack) m |
+  (case tab of ([], []) \<Rightarrow> Some m |
+               ([], _) \<Rightarrow> None |
+               (Loop # is, stack) \<Rightarrow> if cur (tape m) = 0
+                                     then (case skip_loop is 1 of
+                                                None \<Rightarrow> None |
+                                                Some is' \<Rightarrow> interp_bf (is', stack) m
+                                          )
+                                     else interp_bf (is, (Loop # is) # stack) m |
                (Pool # _, is # stack) \<Rightarrow> interp_bf (is, stack) m |
-               (Pool # _, []) \<Rightarrow> m |
+               (Pool # _, []) \<Rightarrow> None |
                (i # is, stack) \<Rightarrow> interp_bf (is, stack) (next_machine i m))"
 
 declare interp_bf.simps[code]
 
 (*undefined behavior if reading from undefined input buffer. Pretty unusable since we cannot
   query from within our bf-code whether there is something to read available.*)
+  (*factory*)
 definition run_bf_generic :: "instr list \<Rightarrow> 'a::{zero,one,minus,plus} list \<Rightarrow> 'a list" where
-"run_bf_generic prog input = rev (out_buf (snd (interp_bf (init_table prog)
-                                  (empty_tape, (Buffer input (case_list undefined Pair) [])))))"
+"run_bf_generic prog input = rev (out_buf (io_state (the (interp_bf (init_stacked_instr_list_state prog)
+                                  (Machine empty_tape (Buffer input (\<lambda>inp. (hd inp, tl inp)) []))))))"
 
 
 (*https://en.wikipedia.org/wiki/Brainfuck#End-of-file_behavior*)
@@ -91,9 +109,10 @@ fun read_byte :: "8 word list \<Rightarrow> (8 word \<times> 8 word list)" where
   "read_byte [] = (EOF, [])" |
   "read_byte (b#bs) = (b, bs)"
 
+  (*brainfuck byte factory*)
 definition run_bf :: "instr list \<Rightarrow> 8 word list \<Rightarrow> 8 word list" where
-"run_bf prog input = rev (out_buf (snd (interp_bf (init_table prog)
-                                  (empty_tape, (Buffer input read_byte [])))))"
+"run_bf prog input = rev (out_buf (io_state (the (interp_bf (init_stacked_instr_list_state prog)
+                                  (Machine empty_tape (Buffer input read_byte []))))))"
 
 export_code run_bf in SML module_name Verifuck file "code/verifuck.ML"
 (*SML_file "code/verifuck.ML"*)
@@ -172,7 +191,7 @@ by(induction cs rs n arbitrary: cs' rs' rule: skip_loop_forward.induct) auto
   
 lemma skip_loop_forward_Reuslt_cs: "skip_loop_forward cs rs n = Result (cs', rs') \<Longrightarrow>
        cs = (drop (length rs) (rev rs')) @ cs'"
-  apply(induction cs rs n arbitrary: cs' rs' rule: skip_loop_forward.induct)
+(*  apply(induction cs rs n arbitrary: cs' rs' rule: skip_loop_forward.induct)
                  apply auto (*This proof is yolo*)
                apply (smt append.assoc append_Nil append_eq_append_conv_if append_eq_conv_conj append_is_Nil_conv append_same_eq append_take_drop_id drop_all drop_append length_rev rev.simps(2) rev_append rev_rev_ident skip_loop_forward_Reuslt)
               apply (smt append.assoc append_Nil append_eq_append_conv_if append_eq_conv_conj append_is_Nil_conv append_same_eq append_take_drop_id drop_all drop_append length_rev rev.simps(2) rev_append rev_rev_ident skip_loop_forward_Reuslt)
@@ -188,6 +207,7 @@ lemma skip_loop_forward_Reuslt_cs: "skip_loop_forward cs rs n = Result (cs', rs'
     apply (smt append.assoc append_Nil append_eq_append_conv_if append_eq_conv_conj append_is_Nil_conv append_same_eq append_take_drop_id drop_all drop_append length_rev rev.simps(2) rev_append rev_rev_ident skip_loop_forward_Reuslt)
    apply (smt append.assoc append_Nil append_eq_append_conv_if append_eq_conv_conj append_is_Nil_conv append_same_eq append_take_drop_id drop_all drop_append length_rev rev.simps(2) rev_append rev_rev_ident skip_loop_forward_Reuslt)
   apply (smt append.assoc append_Nil append_eq_append_conv_if append_eq_conv_conj append_is_Nil_conv append_same_eq append_take_drop_id drop_all drop_append length_rev rev.simps(2) rev_append rev_rev_ident skip_loop_forward_Reuslt)
+*)
   done
     
 lemma "skip_loop_backward cs rs n = Result (cs', rs') \<Longrightarrow>
